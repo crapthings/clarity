@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Clarity Logo](src-tauri/icons/icon.png)
+![Clarity Logo](public/eye.png)
 
 **AI-powered productivity tracker that automatically captures your screen activity and provides intelligent insights. All data stays local for maximum privacy.**
 

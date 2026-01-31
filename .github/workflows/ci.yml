@@ -91,15 +91,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             libwebkit2gtk-4.1-dev \
-            build-essential \
-            curl \
-            wget \
-            file \
-            libssl-dev \
-            libgtk-3-dev \
-            libayatana-appindicator3-dev \
+            libappindicator3-dev \
             librsvg2-dev \
-            libglib2.0-dev
+            patchelf \
+            libglib2.0-dev \
+            pkg-config
+        env:
+          DEBIAN_FRONTEND: noninteractive
       
       - name: Install dependencies
         run: pnpm install --frozen-lockfile || pnpm install

@@ -174,7 +174,13 @@ If you find Clarity useful, please consider:
 
 ## 📸 Screenshots
 
-> **Note**: Screenshots will be added here. Please add your own screenshots showing the main interface, statistics page, summary page, and settings.
+<div align="center">
+
+![Clarity Main Interface](public/7c665fd0d3a376283c47d7bd786a30d7.png)
+
+*Clarity - AI-Powered Productivity Tracker*
+
+</div>
 
 ---
 

@@ -1,10 +1,10 @@
+use log;
 use serde::Deserialize;
 use std::path::PathBuf;
-use tokio::process::Command;
-use log;
+use std::time::Duration;
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
-use std::time::Duration;
+use tokio::process::Command;
 
 // Google Gemini API 响应结构
 #[derive(Debug, Deserialize)]
@@ -109,20 +109,21 @@ pub async fn create_video_from_images(
     // 检查 ffmpeg 是否可用
     // 在 macOS 上，尝试多个可能的路径
     let ffmpeg_paths = if cfg!(target_os = "macos") {
-        vec!["ffmpeg", "/usr/local/bin/ffmpeg", "/opt/homebrew/bin/ffmpeg"]
+        vec![
+            "ffmpeg",
+            "/usr/local/bin/ffmpeg",
+            "/opt/homebrew/bin/ffmpeg",
+        ]
     } else {
         vec!["ffmpeg"]
     };
-    
+
     let mut ffmpeg_found = false;
     let mut ffmpeg_path = String::from("ffmpeg");
-    
+
     for path in &ffmpeg_paths {
-        let check = Command::new(path)
-            .arg("-version")
-            .output()
-            .await;
-        
+        let check = Command::new(path).arg("-version").output().await;
+
         if check.is_ok() {
             ffmpeg_found = true;
             ffmpeg_path = path.to_string();
@@ -130,7 +131,7 @@ pub async fn create_video_from_images(
             break;
         }
     }
-    
+
     if !ffmpeg_found {
         let error_msg = format!(
             "ffmpeg not found. Please install ffmpeg to create videos. Tried paths: {:?}",
@@ -141,7 +142,8 @@ pub async fn create_video_from_images(
     }
 
     // 创建临时文件列表
-    let temp_list_path = output_path.parent()
+    let temp_list_path = output_path
+        .parent()
         .ok_or("Invalid output path")?
         .join("ffmpeg_list.txt");
 
@@ -161,7 +163,10 @@ pub async fn create_video_from_images(
         .map_err(|e| format!("Failed to write file list: {}", e))?;
 
     // 使用 ffmpeg 创建视频
-    log::info!("Running ffmpeg to create video from {} images", image_paths.len());
+    log::info!(
+        "Running ffmpeg to create video from {} images",
+        image_paths.len()
+    );
     let output = Command::new(&ffmpeg_path)
         .arg("-f")
         .arg("concat")
@@ -206,38 +211,37 @@ pub async fn upload_file_to_gemini(
     file_path: &PathBuf,
 ) -> Result<GeminiFile, String> {
     let client = reqwest::Client::new();
-    
+
     // 读取文件
     let mut file = File::open(file_path)
         .await
         .map_err(|e| format!("Failed to open file: {}", e))?;
-    
+
     let mut file_data = Vec::new();
     file.read_to_end(&mut file_data)
         .await
         .map_err(|e| format!("Failed to read file: {}", e))?;
-    
+
     // 获取文件名和 MIME 类型
     let file_name = file_path
         .file_name()
         .and_then(|n| n.to_str())
         .unwrap_or("video.mp4");
-    
+
     let mime_type = "video/mp4"; // 默认使用 video/mp4
-    
+
     // 创建 multipart form
     // Google Gemini API 期望文件数据在 "file" 字段中
-    let form = reqwest::multipart::Form::new()
-        .part(
-            "file",
-            reqwest::multipart::Part::bytes(file_data)
-                .file_name(file_name.to_string())
-                .mime_str(mime_type)
-                .map_err(|e| format!("Failed to set mime type: {}", e))?,
-        );
-    
+    let form = reqwest::multipart::Form::new().part(
+        "file",
+        reqwest::multipart::Part::bytes(file_data)
+            .file_name(file_name.to_string())
+            .mime_str(mime_type)
+            .map_err(|e| format!("Failed to set mime type: {}", e))?,
+    );
+
     log::info!("Uploading file to Google Gemini File API: {}", file_name);
-    
+
     // 上传文件
     let response = client
         .post("https://generativelanguage.googleapis.com/upload/v1beta/files")
@@ -246,21 +250,28 @@ pub async fn upload_file_to_gemini(
         .send()
         .await
         .map_err(|e| format!("Failed to upload file: {}", e))?;
-    
+
     let status = response.status();
     if !status.is_success() {
         let error_text = response.text().await.unwrap_or_default();
-        return Err(format!("Gemini File API error: {} - {}", status, error_text));
+        return Err(format!(
+            "Gemini File API error: {} - {}",
+            status, error_text
+        ));
     }
-    
+
     let upload_response: GeminiFileUploadResponse = response
         .json()
         .await
         .map_err(|e| format!("Failed to parse upload response: {}", e))?;
-    
+
     log::info!("File uploaded successfully: {}", upload_response.file.name);
-    log::info!("File URI: {}, State: {}", upload_response.file.uri, upload_response.file.state);
-    
+    log::info!(
+        "File URI: {}, State: {}",
+        upload_response.file.uri,
+        upload_response.file.state
+    );
+
     Ok(upload_response.file)
 }
 
@@ -273,9 +284,9 @@ pub async fn wait_until_active(
 ) -> Result<GeminiFile, String> {
     let client = reqwest::Client::new();
     let start_time = std::time::Instant::now();
-    
+
     log::info!("Waiting for file to become ACTIVE: {}", file_name);
-    
+
     loop {
         // 获取文件状态
         // file_name 格式可能是 "files/xxx" 或只是 "xxx"，需要统一处理
@@ -284,38 +295,51 @@ pub async fn wait_until_active(
         } else {
             format!("files/{}", file_name)
         };
-        let url = format!("https://generativelanguage.googleapis.com/v1beta/{}", file_id);
+        let url = format!(
+            "https://generativelanguage.googleapis.com/v1beta/{}",
+            file_id
+        );
         log::debug!("Checking file status: {} (file_id: {})", url, file_id);
-        
+
         let response = client
             .get(&url)
             .query(&[("key", api_key)])
             .send()
             .await
             .map_err(|e| format!("Failed to get file status: {}", e))?;
-        
+
         let status = response.status();
         if !status.is_success() {
             let error_text = response.text().await.unwrap_or_default();
             log::error!("Failed to get file status: {} - {}", status, error_text);
-            return Err(format!("Gemini File API error: {} - {}", status, error_text));
+            return Err(format!(
+                "Gemini File API error: {} - {}",
+                status, error_text
+            ));
         }
-        
+
         // Try to parse as direct File object first, then as wrapped response
-        let response_text = response.text().await
+        let response_text = response
+            .text()
+            .await
             .map_err(|e| format!("Failed to read response body: {}", e))?;
-        
+
         if response_text.is_empty() {
-            return Err(format!("Empty response body from Gemini File API for file: {}", file_id));
+            return Err(format!(
+                "Empty response body from Gemini File API for file: {}",
+                file_id
+            ));
         }
-        
-        log::info!("File status response (first 500 chars): {}", 
-            if response_text.len() > 500 { 
-                &response_text[..500] 
-            } else { 
-                &response_text 
-            });
-        
+
+        log::info!(
+            "File status response (first 500 chars): {}",
+            if response_text.len() > 500 {
+                &response_text[..500]
+            } else {
+                &response_text
+            }
+        );
+
         // Try parsing as direct File object (GET endpoint returns File directly)
         let file: GeminiFile = match serde_json::from_str::<GeminiFile>(&response_text) {
             Ok(f) => f,
@@ -331,9 +355,9 @@ pub async fn wait_until_active(
             }
         };
         let elapsed = start_time.elapsed().as_millis();
-        
+
         log::info!("File state: {} (elapsed: {}ms)", file.state, elapsed);
-        
+
         match file.state.as_str() {
             "ACTIVE" => {
                 log::info!("File is now ACTIVE: {} (took {}ms)", file.name, elapsed);
@@ -350,12 +374,15 @@ pub async fn wait_until_active(
                 log::warn!("Unknown file state: {}, continuing to wait...", file.state);
             }
         }
-        
+
         // 检查超时
         if elapsed > timeout_ms as u128 {
-            return Err(format!("Wait for file ACTIVE timeout after {}ms", timeout_ms));
+            return Err(format!(
+                "Wait for file ACTIVE timeout after {}ms",
+                timeout_ms
+            ));
         }
-        
+
         // 等待一段时间后重试
         tokio::time::sleep(Duration::from_millis(interval_ms)).await;
     }
@@ -372,7 +399,7 @@ pub async fn generate_content_with_file_uri(
 ) -> Result<ApiRequestResult, String> {
     let client = reqwest::Client::new();
     let start_time = std::time::Instant::now();
-    
+
     // 构建请求体
     // 根据 Google 文档：
     // - 低分辨率 (low): 约 100 tokens/秒 (66 tokens/帧 + 32 tokens/秒音频)
@@ -385,7 +412,7 @@ pub async fn generate_content_with_file_uri(
     } else {
         "MEDIA_RESOLUTION_LOW"
     };
-    
+
     let request_body = serde_json::json!({
         "contents": [{
             "parts": [
@@ -404,48 +431,63 @@ pub async fn generate_content_with_file_uri(
             ]
         }]
     });
-    
-    log::debug!("Request body: {}", serde_json::to_string_pretty(&request_body).unwrap_or_default());
-    
+
+    log::debug!(
+        "Request body: {}",
+        serde_json::to_string_pretty(&request_body).unwrap_or_default()
+    );
+
     log::info!("Calling Google Gemini API with file URI: {}", file_uri);
-    
+
     let response = client
-        .post(&format!("https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent", model))
+        .post(&format!(
+            "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent",
+            model
+        ))
         .query(&[("key", api_key)])
         .header("Content-Type", "application/json")
         .json(&request_body)
         .send()
         .await
         .map_err(|e| format!("Failed to send request: {}", e))?;
-    
+
     let duration_ms = start_time.elapsed().as_millis() as u64;
     let status = response.status();
-    
+
     if !status.is_success() {
         let error_text = response.text().await.unwrap_or_default();
         return Err(format!("Gemini API error: {} - {}", status, error_text));
     }
-    
+
     let api_response: GeminiGenerateContentResponse = response
         .json()
         .await
         .map_err(|e| format!("Failed to parse response: {}", e))?;
-    
+
     if let Some(candidate) = api_response.candidates.first() {
         if let Some(part) = candidate.content.parts.first() {
             if let Some(text) = &part.text {
                 return Ok(ApiRequestResult {
                     content: text.clone(),
-                    prompt_tokens: api_response.usage_metadata.as_ref().and_then(|u| u.prompt_token_count),
-                    completion_tokens: api_response.usage_metadata.as_ref().and_then(|u| u.candidates_token_count),
-                    total_tokens: api_response.usage_metadata.as_ref().and_then(|u| u.total_token_count),
+                    prompt_tokens: api_response
+                        .usage_metadata
+                        .as_ref()
+                        .and_then(|u| u.prompt_token_count),
+                    completion_tokens: api_response
+                        .usage_metadata
+                        .as_ref()
+                        .and_then(|u| u.candidates_token_count),
+                    total_tokens: api_response
+                        .usage_metadata
+                        .as_ref()
+                        .and_then(|u| u.total_token_count),
                     status_code: status.as_u16(),
                     duration_ms,
                 });
             }
         }
     }
-    
+
     Err("No response from Gemini API".to_string())
 }
 
@@ -457,24 +499,32 @@ pub async fn summarize_video_with_gemini(
     prompt: &str,
     resolution: &str, // "low" or "default"
 ) -> Result<ApiRequestResult, String> {
-    log::info!("Starting video summary with Google Gemini API (resolution: {})", resolution);
-    
+    log::info!(
+        "Starting video summary with Google Gemini API (resolution: {})",
+        resolution
+    );
+
     // 1. 上传文件
     let uploaded_file = upload_file_to_gemini(api_key, video_path).await?;
-    
+
     // 2. 等待文件处理完成
     log::info!("Waiting for file to become ACTIVE: {}", uploaded_file.name);
     let active_file = wait_until_active(
         api_key,
         &uploaded_file.name,
-        1000, // 每 1 秒检查一次（视频文件处理可能需要更长时间）
+        1000,    // 每 1 秒检查一次（视频文件处理可能需要更长时间）
         120_000, // 120 秒超时（2分钟，视频文件处理可能需要更长时间）
-    ).await?;
-    
+    )
+    .await?;
+
     log::info!("File is ACTIVE, URI: {}", active_file.uri);
-    
+
     // 3. 使用文件 URI 生成内容
-    log::info!("Generating content with file URI: {} (resolution: {})", active_file.uri, resolution);
+    log::info!(
+        "Generating content with file URI: {} (resolution: {})",
+        active_file.uri,
+        resolution
+    );
     let result = generate_content_with_file_uri(
         api_key,
         model,
@@ -482,10 +532,11 @@ pub async fn summarize_video_with_gemini(
         &active_file.mime_type,
         prompt,
         resolution,
-    ).await?;
-    
+    )
+    .await?;
+
     log::info!("Video summary completed successfully");
-    
+
     Ok(result)
 }
 
@@ -495,12 +546,12 @@ pub async fn generate_text_summary_with_gemini(
     model: &str,
     prompt: &str,
 ) -> Result<String, String> {
-    use std::time::Instant;
     use reqwest::Client;
-    
+    use std::time::Instant;
+
     let start_time = Instant::now();
     let client = Client::new();
-    
+
     let request_body = serde_json::json!({
         "contents": [{
             "parts": [
@@ -510,32 +561,38 @@ pub async fn generate_text_summary_with_gemini(
             ]
         }]
     });
-    
-    log::debug!("Text summary request body: {}", serde_json::to_string_pretty(&request_body).unwrap_or_default());
-    
+
+    log::debug!(
+        "Text summary request body: {}",
+        serde_json::to_string_pretty(&request_body).unwrap_or_default()
+    );
+
     log::info!("Calling Google Gemini API for text summary");
-    
+
     let response = client
-        .post(&format!("https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent", model))
+        .post(&format!(
+            "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent",
+            model
+        ))
         .query(&[("key", api_key)])
         .header("Content-Type", "application/json")
         .json(&request_body)
         .send()
         .await
         .map_err(|e| format!("Failed to send request: {}", e))?;
-    
+
     let status = response.status();
-    
+
     if !status.is_success() {
         let error_text = response.text().await.unwrap_or_default();
         return Err(format!("Gemini API error: {} - {}", status, error_text));
     }
-    
+
     let api_response: GeminiGenerateContentResponse = response
         .json()
         .await
         .map_err(|e| format!("Failed to parse response: {}", e))?;
-    
+
     if let Some(candidate) = api_response.candidates.first() {
         if let Some(part) = candidate.content.parts.first() {
             if let Some(text) = &part.text {
@@ -545,6 +602,6 @@ pub async fn generate_text_summary_with_gemini(
             }
         }
     }
-    
+
     Err("No response from Gemini API".to_string())
 }

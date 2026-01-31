@@ -43,7 +43,7 @@ pub struct DailySummary {
 // 获取数据库路径
 fn get_db_path() -> PathBuf {
     let app_name = "clarity";
-    
+
     #[cfg(target_os = "windows")]
     {
         dirs::data_local_dir()
@@ -52,10 +52,15 @@ fn get_db_path() -> PathBuf {
                 p.push("clarity.db");
                 p
             })
-            .unwrap_or_else(|| PathBuf::from(format!("C:\\Users\\{}\\AppData\\Local\\{}\\clarity.db", 
-                std::env::var("USERNAME").unwrap_or_else(|_| "User".to_string()), app_name)))
+            .unwrap_or_else(|| {
+                PathBuf::from(format!(
+                    "C:\\Users\\{}\\AppData\\Local\\{}\\clarity.db",
+                    std::env::var("USERNAME").unwrap_or_else(|_| "User".to_string()),
+                    app_name
+                ))
+            })
     }
-    
+
     #[cfg(target_os = "macos")]
     {
         dirs::home_dir()
@@ -66,9 +71,14 @@ fn get_db_path() -> PathBuf {
                 p.push("clarity.db");
                 p
             })
-            .unwrap_or_else(|| PathBuf::from(format!("~/Library/Application Support/{}/clarity.db", app_name)))
+            .unwrap_or_else(|| {
+                PathBuf::from(format!(
+                    "~/Library/Application Support/{}/clarity.db",
+                    app_name
+                ))
+            })
     }
-    
+
     #[cfg(target_os = "linux")]
     {
         dirs::home_dir()
@@ -81,7 +91,7 @@ fn get_db_path() -> PathBuf {
             })
             .unwrap_or_else(|| PathBuf::from(format!("~/.local/share/{}/clarity.db", app_name)))
     }
-    
+
     #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
     {
         PathBuf::from(format!("./{}.db", app_name))
@@ -91,22 +101,23 @@ fn get_db_path() -> PathBuf {
 // 初始化数据库连接
 pub async fn init_db() -> Result<SqlitePool, sqlx::Error> {
     let db_path = get_db_path();
-    
+
     // 确保目录存在
     if let Some(parent) = db_path.parent() {
         tokio::fs::create_dir_all(parent).await?;
     }
-    
+
     // 构建连接选项
-    let connect_options = SqliteConnectOptions::from_str(&format!("sqlite://{}", db_path.display()))?
-        .create_if_missing(true);
-    
+    let connect_options =
+        SqliteConnectOptions::from_str(&format!("sqlite://{}", db_path.display()))?
+            .create_if_missing(true);
+
     // 创建连接池
     let pool = SqlitePoolOptions::new()
         .max_connections(5)
         .connect_with(connect_options)
         .await?;
-    
+
     // 创建表
     sqlx::query(
         r#"
@@ -123,7 +134,7 @@ pub async fn init_db() -> Result<SqlitePool, sqlx::Error> {
     )
     .execute(&pool)
     .await?;
-    
+
     sqlx::query(
         r#"
         CREATE TABLE IF NOT EXISTS summaries (
@@ -138,16 +149,16 @@ pub async fn init_db() -> Result<SqlitePool, sqlx::Error> {
     )
     .execute(&pool)
     .await?;
-    
+
     // 创建索引以提高查询性能
     sqlx::query("CREATE INDEX IF NOT EXISTS idx_traces_timestamp ON screenshot_traces(timestamp)")
         .execute(&pool)
         .await?;
-    
+
     sqlx::query("CREATE INDEX IF NOT EXISTS idx_summaries_start_time ON summaries(start_time)")
         .execute(&pool)
         .await?;
-    
+
     // 创建 API 请求记录表
     sqlx::query(
         r#"
@@ -169,11 +180,11 @@ pub async fn init_db() -> Result<SqlitePool, sqlx::Error> {
     )
     .execute(&pool)
     .await?;
-    
+
     sqlx::query("CREATE INDEX IF NOT EXISTS idx_api_requests_timestamp ON api_requests(timestamp)")
         .execute(&pool)
         .await?;
-    
+
     // 创建每日总结表
     sqlx::query(
         r#"
@@ -191,11 +202,11 @@ pub async fn init_db() -> Result<SqlitePool, sqlx::Error> {
     )
     .execute(&pool)
     .await?;
-    
+
     sqlx::query("CREATE INDEX IF NOT EXISTS idx_daily_summaries_date ON daily_summaries(date)")
         .execute(&pool)
         .await?;
-    
+
     Ok(pool)
 }
 
@@ -222,7 +233,7 @@ pub async fn insert_screenshot_trace(
     .execute(pool)
     .await?
     .last_insert_rowid();
-    
+
     Ok(id)
 }
 
@@ -235,34 +246,34 @@ pub async fn get_screenshot_traces(
 ) -> Result<Vec<ScreenshotTrace>, sqlx::Error> {
     let mut query = String::from("SELECT id, timestamp, file_path, width, height, file_size FROM screenshot_traces WHERE 1=1");
     let mut conditions = Vec::new();
-    
+
     if let Some(start) = start_time {
         conditions.push(format!("timestamp >= '{}'", start.to_rfc3339()));
     }
     if let Some(end) = end_time {
         conditions.push(format!("timestamp <= '{}'", end.to_rfc3339()));
     }
-    
+
     if !conditions.is_empty() {
         query.push_str(" AND ");
         query.push_str(&conditions.join(" AND "));
     }
-    
+
     query.push_str(" ORDER BY timestamp DESC");
-    
+
     if let Some(limit_val) = limit {
         query.push_str(&format!(" LIMIT {}", limit_val));
     }
-    
+
     let rows = sqlx::query(&query).fetch_all(pool).await?;
-    
+
     let mut traces = Vec::new();
     for row in rows {
         let timestamp_str: String = row.get(1);
         let timestamp = DateTime::parse_from_rfc3339(&timestamp_str)
             .map_err(|_| sqlx::Error::Decode("Invalid timestamp format".into()))?
             .with_timezone(&Local);
-        
+
         traces.push(ScreenshotTrace {
             id: row.get(0),
             timestamp,
@@ -272,7 +283,7 @@ pub async fn get_screenshot_traces(
             file_size: row.get(5),
         });
     }
-    
+
     Ok(traces)
 }
 
@@ -297,7 +308,7 @@ pub async fn insert_summary(
     .execute(pool)
     .await?
     .last_insert_rowid();
-    
+
     Ok(id)
 }
 
@@ -310,43 +321,43 @@ pub async fn get_summaries(
 ) -> Result<Vec<Summary>, sqlx::Error> {
     let mut query = String::from("SELECT id, start_time, end_time, content, screenshot_count, created_at FROM summaries WHERE 1=1");
     let mut conditions = Vec::new();
-    
+
     if let Some(start) = start_time {
         conditions.push(format!("start_time >= '{}'", start.to_rfc3339()));
     }
     if let Some(end) = end_time {
         conditions.push(format!("end_time <= '{}'", end.to_rfc3339()));
     }
-    
+
     if !conditions.is_empty() {
         query.push_str(" AND ");
         query.push_str(&conditions.join(" AND "));
     }
-    
+
     query.push_str(" ORDER BY start_time DESC");
-    
+
     if let Some(limit_val) = limit {
         query.push_str(&format!(" LIMIT {}", limit_val));
     }
-    
+
     let rows = sqlx::query(&query).fetch_all(pool).await?;
-    
+
     let mut summaries = Vec::new();
     for row in rows {
         let start_time_str: String = row.get(1);
         let end_time_str: String = row.get(2);
         let created_at_str: String = row.get(5);
-        
+
         // 尝试解析 RFC3339 格式，如果失败则尝试 SQLite 格式
         let start_time = parse_timestamp(&start_time_str)
             .map_err(|e| sqlx::Error::Decode(format!("Invalid start_time format: {}", e).into()))?;
-        
+
         let end_time = parse_timestamp(&end_time_str)
             .map_err(|e| sqlx::Error::Decode(format!("Invalid end_time format: {}", e).into()))?;
-        
+
         let created_at = parse_timestamp(&created_at_str)
             .map_err(|e| sqlx::Error::Decode(format!("Invalid created_at format: {}", e).into()))?;
-        
+
         summaries.push(Summary {
             id: row.get(0),
             start_time,
@@ -356,7 +367,7 @@ pub async fn get_summaries(
             created_at,
         });
     }
-    
+
     Ok(summaries)
 }
 
@@ -392,9 +403,9 @@ pub async fn insert_api_request(
     duration_ms: u64,
 ) -> Result<i64, sqlx::Error> {
     use chrono::Local;
-    
+
     let timestamp = Local::now().to_rfc3339();
-    
+
     let id = sqlx::query(
         r#"
         INSERT INTO api_requests (
@@ -417,7 +428,7 @@ pub async fn insert_api_request(
     .execute(pool)
     .await?
     .last_insert_rowid();
-    
+
     Ok(id)
 }
 
@@ -436,18 +447,18 @@ pub async fn get_api_statistics(
             COALESCE(SUM(completion_tokens), 0) as total_completion_tokens,
             COALESCE(SUM(total_tokens), 0) as total_tokens,
             AVG(request_duration_ms) as avg_duration_ms
-        FROM api_requests WHERE 1=1"
+        FROM api_requests WHERE 1=1",
     );
-    
+
     if let Some(start) = start_time {
         query.push_str(&format!(" AND timestamp >= '{}'", start.to_rfc3339()));
     }
     if let Some(end) = end_time {
         query.push_str(&format!(" AND timestamp <= '{}'", end.to_rfc3339()));
     }
-    
+
     let row = sqlx::query(&query).fetch_one(pool).await?;
-    
+
     Ok(ApiStatistics {
         total_requests: row.get::<i64, _>(0),
         successful_requests: row.get::<i64, _>(1),
@@ -477,30 +488,34 @@ fn parse_timestamp(timestamp_str: &str) -> Result<DateTime<Local>, String> {
     if let Ok(dt) = DateTime::parse_from_rfc3339(timestamp_str) {
         return Ok(dt.with_timezone(&Local));
     }
-    
+
     // 尝试 SQLite 的 datetime 格式: "YYYY-MM-DD HH:MM:SS"
     if let Ok(dt) = NaiveDateTime::parse_from_str(timestamp_str, "%Y-%m-%d %H:%M:%S") {
-        return Ok(dt.and_local_timezone(Local).single()
+        return Ok(dt
+            .and_local_timezone(Local)
+            .single()
             .ok_or_else(|| "Invalid timezone conversion".to_string())?);
     }
-    
+
     // 尝试带毫秒的格式: "YYYY-MM-DD HH:MM:SS.fff"
     if let Ok(dt) = NaiveDateTime::parse_from_str(timestamp_str, "%Y-%m-%d %H:%M:%S%.f") {
-        return Ok(dt.and_local_timezone(Local).single()
+        return Ok(dt
+            .and_local_timezone(Local)
+            .single()
             .ok_or_else(|| "Invalid timezone conversion".to_string())?);
     }
-    
+
     Err(format!("Unable to parse timestamp: {}", timestamp_str))
 }
 
 // 获取今天的截图数量
 pub async fn get_today_screenshot_count(pool: &SqlitePool) -> Result<i64, sqlx::Error> {
     let count: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM screenshot_traces WHERE date(timestamp) = date('now')"
+        "SELECT COUNT(*) FROM screenshot_traces WHERE date(timestamp) = date('now')",
     )
     .fetch_one(pool)
     .await?;
-    
+
     Ok(count.0)
 }
 
@@ -532,15 +547,13 @@ pub async fn upsert_daily_summary(
     .bind(total_duration_seconds)
     .execute(pool)
     .await?;
-    
+
     // 获取插入或更新的 ID
-    let result: Option<(i64,)> = sqlx::query_as(
-        "SELECT id FROM daily_summaries WHERE date = ?"
-    )
-    .bind(date)
-    .fetch_optional(pool)
-    .await?;
-    
+    let result: Option<(i64,)> = sqlx::query_as("SELECT id FROM daily_summaries WHERE date = ?")
+        .bind(date)
+        .fetch_optional(pool)
+        .await?;
+
     Ok(result.map(|r| r.0).unwrap_or(0))
 }
 
@@ -555,13 +568,13 @@ pub async fn get_daily_summary(
     .bind(date)
     .fetch_optional(pool)
     .await?;
-    
+
     if let Some(row) = result {
         let created_at = parse_timestamp(&row.6)
             .map_err(|e| sqlx::Error::Decode(format!("Invalid created_at format: {}", e).into()))?;
         let updated_at = parse_timestamp(&row.7)
             .map_err(|e| sqlx::Error::Decode(format!("Invalid updated_at format: {}", e).into()))?;
-        
+
         Ok(Some(DailySummary {
             id: row.0,
             date: row.1,
@@ -586,37 +599,37 @@ pub async fn get_daily_summaries(
 ) -> Result<Vec<DailySummary>, sqlx::Error> {
     let mut query = String::from("SELECT id, date, content, screenshot_count, summary_count, total_duration_seconds, created_at, updated_at FROM daily_summaries WHERE 1=1");
     let mut conditions = Vec::new();
-    
+
     if let Some(start) = start_date {
         conditions.push(format!("date >= '{}'", start));
     }
     if let Some(end) = end_date {
         conditions.push(format!("date <= '{}'", end));
     }
-    
+
     if !conditions.is_empty() {
         query.push_str(" AND ");
         query.push_str(&conditions.join(" AND "));
     }
-    
+
     query.push_str(" ORDER BY date DESC");
-    
+
     if let Some(limit_val) = limit {
         query.push_str(&format!(" LIMIT {}", limit_val));
     }
-    
+
     let rows = sqlx::query(&query).fetch_all(pool).await?;
-    
+
     let mut summaries = Vec::new();
     for row in rows {
         let created_at_str: String = row.get(6);
         let updated_at_str: String = row.get(7);
-        
+
         let created_at = parse_timestamp(&created_at_str)
             .map_err(|e| sqlx::Error::Decode(format!("Invalid created_at format: {}", e).into()))?;
         let updated_at = parse_timestamp(&updated_at_str)
             .map_err(|e| sqlx::Error::Decode(format!("Invalid updated_at format: {}", e).into()))?;
-        
+
         summaries.push(DailySummary {
             id: row.get(0),
             date: row.get(1),
@@ -628,6 +641,6 @@ pub async fn get_daily_summaries(
             updated_at,
         });
     }
-    
+
     Ok(summaries)
 }

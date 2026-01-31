@@ -17,6 +17,7 @@
     "fs:allow-rename",
     "fs:allow-mkdir",
     "fs:scope-appdata",
+    "fs:scope-home",
     "core:window:default",
     "core:window:allow-start-dragging",
     "core:window:allow-minimize",

@@ -31,7 +31,7 @@ xcap = "0.8"
 image = "0.25"
 tokio = { version = "1", features = ["full"] }
 chrono = { version = "0.4", features = ["serde"] }
-dirs = "5"
+dirs = "6"
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "sqlite", "chrono", "uuid"] }
 reqwest = { version = "0.12", features = ["json", "multipart"] }
 base64 = "0.22"

@@ -1,0 +1,52 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Dependencies
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Tauri
+src-tauri/target
+src-tauri/Cargo.lock
+
+# Build outputs
+*.dmg
+*.AppImage
+*.deb
+*.rpm
+*.msi
+*.exe
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Screenshots (for development)
+docs/screenshots/*.png
+docs/screenshots/*.jpg
+!docs/screenshots/.gitkeep
+
+# Temporary files
+*.tmp
+*.temp
+.cache

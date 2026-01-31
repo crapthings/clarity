@@ -1,0 +1,54 @@
+{
+  "name": "clarity",
+  "version": "0.1.0",
+  "description": "AI-powered productivity tracker that automatically captures your screen activity and provides intelligent insights. All data stays local for maximum privacy.",
+  "type": "module",
+  "keywords": [
+    "productivity",
+    "time-tracking",
+    "ai",
+    "screen-recording",
+    "privacy",
+    "desktop-app",
+    "tauri",
+    "react",
+    "rust",
+    "open-source"
+  ],
+  "author": "crapthings",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/crapthings/clarity.git"
+  },
+  "homepage": "https://github.com/crapthings/clarity#readme",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@base-ui/react": "^1.1.0",
+    "@mdi/js": "^7.4.47",
+    "@mdi/react": "^1.6.1",
+    "@tailwindcss/vite": "^4.1.18",
+    "@tanstack/react-virtual": "^3.13.18",
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-opener": "^2",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-is": "^19.2.4",
+    "react-markdown": "^10.1.0",
+    "recharts": "^3.7.0",
+    "remark-gfm": "^4.0.1",
+    "tailwindcss": "^4.1.18",
+    "zustand": "^5.0.10"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2",
+    "@vitejs/plugin-react": "^4.6.0",
+    "standard": "^17.1.2",
+    "vite": "^7.0.4"
+  }
+}
